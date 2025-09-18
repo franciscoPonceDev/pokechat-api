@@ -6,10 +6,14 @@ app = "pokechat-api"
   auto_stop_machines = true
   auto_start_machines = true
   min_machines_running = 0
+  processes = ["app"]
 
 [env]
   # Allow frontend hosted on Vercel to call the API
   CORS_ORIGINS = "https://pokechat-frontend-2jkhhbxk6-franciscogpponces-projects.vercel.app"
+  URL_REQUIRE_HTTPS = "1"
+  MAX_UPLOAD_BYTES = "1048576"
+  MAX_REMOTE_BYTES = "1048576"
 
 
 
