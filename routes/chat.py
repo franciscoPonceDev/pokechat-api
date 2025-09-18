@@ -133,13 +133,78 @@ def _compose_message(question: str, resource: str, data: dict) -> str:
     # Non-Pokémon resources (generic message)
     if resource == "type":
         type_name = _title_case_name(data.get("name", "this type"))
-        return f"You're asking about the {type_name} type. Want Pokémon, moves, or damage relations?"
+        # Summarize damage relations if available
+        rel = (data or {}).get("damage_relations") or {}
+        def names(key: str) -> List[str]:
+            arr = rel.get(key) or []
+            vals: List[str] = []
+            for a in arr:
+                n = (a or {}).get("name")
+                if n:
+                    vals.append(n.replace("-", " ").title())
+            return vals
+        lines: List[str] = [f"## {type_name} Type"]
+        pairs = [
+            ("Double damage to", names("double_damage_to")),
+            ("Double damage from", names("double_damage_from")),
+            ("Half damage to", names("half_damage_to")),
+            ("Half damage from", names("half_damage_from")),
+            ("No damage to", names("no_damage_to")),
+            ("No damage from", names("no_damage_from")),
+        ]
+        for label, arr in pairs:
+            if arr:
+                lines.append(f"- {label}: {_human_join(arr)}")
+        return "\n".join(lines)
     if resource == "ability":
         ability_name = data.get("name", "this ability").replace("-", " ").title()
-        return f"You're asking about the {ability_name} ability. Want Pokémon that have it?"
+        eff = ""
+        for e in (data.get("effect_entries") or []):
+            if (e.get("language") or {}).get("name") == "en":
+                eff = (e.get("short_effect") or e.get("effect") or "").replace("\n", " ")
+                break
+        lines = [f"## {ability_name} (Ability)"]
+        if eff:
+            lines.append("")
+            lines.append(eff)
+        return "\n".join(lines)
     if resource == "move":
         move_name = data.get("name", "this move").replace("-", " ").title()
-        return f"You're asking about the move {move_name}. Want type, power, or accuracy?"
+        mtype = ((data.get("type") or {}).get("name") or "").replace("-", " ").title()
+        dmg = ((data.get("damage_class") or {}).get("name") or "").replace("-", " ").title()
+        power = data.get("power")
+        accuracy = data.get("accuracy")
+        pp = data.get("pp")
+        priority = data.get("priority")
+        eff = ""
+        for e in (data.get("effect_entries") or []):
+            if (e.get("language") or {}).get("name") == "en":
+                eff = (e.get("short_effect") or e.get("effect") or "").replace("\n", " ")
+                # Replace effect chance placeholder, if present
+                ch = data.get("effect_chance")
+                if ch is not None:
+                    eff = eff.replace("$effect_chance", str(ch))
+                break
+        lines: List[str] = [f"## {move_name} (Move)"]
+        info: List[str] = []
+        if mtype:
+            info.append(f"Type: {mtype}")
+        if dmg:
+            info.append(f"Class: {dmg}")
+        if power is not None:
+            info.append(f"Power: {power}")
+        if accuracy is not None:
+            info.append(f"Accuracy: {accuracy}")
+        if pp is not None:
+            info.append(f"PP: {pp}")
+        if priority not in (None, 0):
+            info.append(f"Priority: {priority}")
+        if info:
+            lines.append("- " + " | ".join(info))
+        if eff:
+            lines.append("")
+            lines.append(eff)
+        return "\n".join(lines)
 
     # Default catch-all
     return "I found what you asked for. Do you want more details?"
@@ -235,9 +300,16 @@ def _resources_by_priority(question: str) -> List[str]:
     if "type" in q:
         order.extend(["pokemon", "type"])
 
+    # Direct domain terms
+    if "berry" in q or "berries" in q:
+        # prioritize berry info for questions about berries
+        order.append("berry")
+    if "move" in q or "tm" in q or "hm" in q:
+        order.append("move")
+
     # default preference if nothing specified
     if not order:
-        order = ["pokemon", "berry", "move", "ability", "item", "type"]
+        order = ["pokemon", "move", "ability", "type", "item", "berry"]
 
     # de-duplicate while keeping order
     seen = set()
