@@ -41,9 +41,13 @@ async def startup_event() -> None:
     app.state.hash_method = os.getenv("HASH_METHOD", "phash")
     app.state.hash_size = int(os.getenv("HASH_SIZE", "8"))
     app.state.similarity_threshold = float(os.getenv("SIMILARITY_THRESHOLD", "0.9"))
+    # Limits and safeguards
+    app.state.max_upload_bytes = int(os.getenv("MAX_UPLOAD_BYTES", str(1 * 1024 * 1024)))  # 1 MiB
+    app.state.max_remote_bytes = int(os.getenv("MAX_REMOTE_BYTES", str(1 * 1024 * 1024)))  # 1 MiB
+    app.state.url_require_https = os.getenv("URL_REQUIRE_HTTPS", "1") not in {"0", "false", "False"}
 
     # PokeAPI client
-    app.state.pokeapi = PokeAPIClient()
+    app.state.pokeapi = PokeAPIClient(timeout=8.0)
 
 
 @app.on_event("shutdown")

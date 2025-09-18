@@ -54,7 +54,7 @@ class PokeAPIClient:
         self._cache.set(url, data)
         return data
 
-    async def get_bytes(self, url: str) -> Optional[bytes]:
+    async def get_bytes(self, url: str, *, max_bytes: int | None = None) -> Optional[bytes]:
         if not url:
             return None
         cached = self._bytes_cache.get(url)
@@ -66,10 +66,14 @@ class PokeAPIClient:
             "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
             "Referer": url,
         }
+        # Stream and cap size to avoid excessive memory / egress
         res = await self._client.get(url, headers=headers, follow_redirects=True)
         if res.status_code != 200:
             return None
-        data = res.content
+        content = res.content
+        if (max_bytes is not None) and (len(content) > max_bytes):
+            return None
+        data = content
         self._bytes_cache.set(url, data)
         return data
 

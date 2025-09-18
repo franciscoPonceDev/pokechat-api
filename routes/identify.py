@@ -99,7 +99,7 @@ async def identify(request: Request, file: Optional[UploadFile] = File(None), ur
     if (file is not None) and url:
         raise HTTPException(status_code=400, detail="Provide only one of 'file' or 'url', not both")
 
-    # Load image bytes from either upload or URL
+    # Load image bytes from either upload or URL with strict limits
     try:
         file_bytes: Optional[bytes] = None
         if url:
@@ -109,16 +109,21 @@ async def identify(request: Request, file: Optional[UploadFile] = File(None), ur
                 cleaned = re.sub(r"^@+", "", cleaned)
                 cleaned = cleaned.strip(" <>\"'\t\r\n")
                 url = cleaned
-            if not (isinstance(url, str) and (url.startswith("http://") or url.startswith("https://"))):
+            require_https = bool(getattr(request.app.state, "url_require_https", True))
+            if not (isinstance(url, str) and (url.startswith("https://") or (not require_https and url.startswith("http://")))):
                 raise HTTPException(status_code=400, detail="'url' must start with http:// or https://")
-            file_bytes = await api.get_bytes(url)
+            file_bytes = await api.get_bytes(url, max_bytes=int(getattr(request.app.state, "max_remote_bytes", 1048576)))
             if not file_bytes:
                 raise HTTPException(status_code=400, detail="Failed to fetch image from URL")
         else:
             # file path
             if not (file.content_type or "").startswith("image/"):
                 raise HTTPException(status_code=400, detail="Uploaded file must be an image")
-            file_bytes = await file.read()
+            # enforce max upload size
+            max_upload = int(getattr(request.app.state, "max_upload_bytes", 1048576))
+            file_bytes = await file.read(max_upload + 1)
+            if len(file_bytes) > max_upload:
+                raise HTTPException(status_code=413, detail="File too large")
             if not file_bytes:
                 raise HTTPException(status_code=400, detail="Empty file")
 
