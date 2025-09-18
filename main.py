@@ -20,12 +20,14 @@ app = FastAPI(title="PokeChat API", version="0.3.0")
 # CORS configuration (defaults to allowing all)
 cors_origins_env = os.getenv("CORS_ORIGINS", "*")
 allow_origins = _parse_cors_origins(cors_origins_env)
+allow_origin_regex = os.getenv("CORS_ORIGIN_REGEX")
 
 # With wildcard origins, browsers disallow credentials; only enable credentials when origins are explicit.
 allow_credentials = allow_origins != ["*"]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allow_origins,
+    allow_origin_regex=allow_origin_regex,
     allow_credentials=allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
